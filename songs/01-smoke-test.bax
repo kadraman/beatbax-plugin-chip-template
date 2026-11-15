@@ -1,0 +1,37 @@
+# BLIP-01 smoke test — the smallest song that exercises all four voices.
+#
+#   channel 1 → pulse     (square + duty)
+#   channel 2 → triangle  (fixed)
+#   channel 3 → wave      (32-nibble sawtooth wavetable)
+#   channel 4 → noise     (white, fast decay)
+#
+# Run (after the plugin is linked/installed):
+#   beatbax play songs/01-smoke-test.bax
+#   beatbax verify songs/01-smoke-test.bax
+#   beatbax export json songs/01-smoke-test.bax out.json
+
+chip blip
+bpm 120
+stepsPerBar 4
+
+inst lead type=pulse vol=13 duty=25 env=13,down,2
+inst bass type=triangle vol=15 env=15,flat
+inst pad  type=wave vol=10 wave=0123456789abcdef0123456789abcdef
+inst kick type=noise vol=15 noise_mode=white noise_rate=2 env=15,down,1
+
+pat melody = C4 E4 G4 E4
+pat bassl  = C2 . G2 .
+pat padl   = C4:2 G4:2
+pat drums  = kick . kick .
+
+seq main     = melody melody
+seq bass_seq = bassl bassl
+seq pad_seq  = padl padl
+seq drum_seq = drums drums
+
+channel 1 => inst lead seq main
+channel 2 => inst bass seq bass_seq
+channel 3 => inst pad seq pad_seq
+channel 4 => inst kick seq drum_seq
+
+play
