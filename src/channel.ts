@@ -194,12 +194,17 @@ export class PulseBackend implements ChipChannelBackend {
     if (!this.active || this.freq <= 0) return;
 
     const amplitude = (this.level / 15) * BLIP_MIX_GAIN.pulse;
+    // Mean-centred pulse (no DC) so PCM matches the Web Audio path, which
+    // cannot reproduce a DC offset (the zeroth PeriodicWave coefficient is
+    // ignored). High/low preserve the peak-to-peak swing but centre on zero:
+    //   high = 2·amp·(1−duty),  low = −2·amp·duty   ⇒   mean = 0
+    const high = 2 * amplitude * (1 - this.duty);
+    const low = -2 * amplitude * this.duty;
     const phaseInc = this.freq / sampleRate;
 
     for (let i = 0; i < buffer.length; i++) {
-      // Square wave: +amplitude for the first `duty` fraction of each cycle,
-      // -amplitude for the rest. ADD to the buffer (never overwrite).
-      buffer[i] += this.phase < this.duty ? amplitude : -amplitude;
+      // ADD to the buffer (never overwrite) — channels are mixed by summing.
+      buffer[i] += this.phase < this.duty ? high : low;
 
       this.phase += phaseInc;
       if (this.phase >= 1) this.phase -= Math.floor(this.phase);
@@ -260,16 +265,20 @@ export class PulseBackend implements ChipChannelBackend {
 }
 
 /**
- * Build a PeriodicWave reproducing the bipolar pulse used by `render()`:
- * +1 for the first `duty` fraction of each cycle, -1 for the rest.
+ * Build a PeriodicWave reproducing the mean-centred pulse used by `render()`:
+ * high for the first `duty` fraction of each cycle, low for the rest, with no
+ * DC component.
  *
  * A non-50% pulse is neither odd nor even, so its Fourier series has BOTH
  * cosine (`real`) and sine (`imag`) terms — omitting either shifts the phase
- * or halves the level relative to the PCM path. Coefficients (amplitude 1):
+ * or halves the level relative to the PCM path. Coefficients for the
+ * mean-centred pulse (see the `render()` comment):
  *
  *   real[n] = (2/(nπ)) sin(2πnd)   — cosine term
  *   imag[n] = (4/(nπ)) sin²(πnd)   — sine term
- *   real[0] = 2d − 1               — DC offset (the pulse is not centred at 0)
+ *
+ * There is deliberately NO zeroth (DC) term: Web Audio ignores it, and
+ * `render()` is written to be mean-centred too, so both paths stay in sync.
  *
  * `disableNormalization: true` keeps these scaled amplitudes (Web Audio
  * otherwise re-normalizes to a fixed peak). `MAX_HARMONICS` truncates the
@@ -283,9 +292,6 @@ function createPulsePeriodicWave(ctx: BaseAudioContext, duty: number): any {
   const real = new Float32Array(size);
   const imag = new Float32Array(size);
   const d = Math.max(0, Math.min(1, duty));
-
-  // DC offset of the bipolar pulse (+1 for [0,d), -1 for [d,1)).
-  real[0] = 2 * d - 1;
 
   for (let n = 1; n <= MAX_HARMONICS; n++) {
     const sine = Math.sin(Math.PI * n * d);

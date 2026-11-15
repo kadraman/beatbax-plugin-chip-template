@@ -192,6 +192,15 @@ describe('PCM rendering', () => {
     expect(buffer.some((s) => s !== 0)).toBe(true);
   });
 
+  it('pulse is DC-free (mean-centred) at a non-50% duty', () => {
+    const channel = blipPlugin.createChannel(0, {} as BaseAudioContext);
+    channel.noteOn(441, { type: 'pulse', vol: 12, duty: '25' }); // 100 samples = one period at 44.1 kHz
+    const buffer = new Float32Array(100);
+    channel.render(buffer, 44100);
+    const mean = buffer.reduce((a, b) => a + b, 0) / buffer.length;
+    expect(Math.abs(mean)).toBeLessThan(1e-3);
+  });
+
   it('triangle channel renders non-zero audio', () => {
     const channel = blipPlugin.createChannel(1, {} as BaseAudioContext);
     channel.noteOn(440, { type: 'triangle', vol: 12 });
