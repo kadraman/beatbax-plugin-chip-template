@@ -6,7 +6,7 @@
  * list of `{ field, message }` errors describing every problem.
  */
 import type { InstrumentNode, ValidationError } from '@beatbax/engine';
-import { parseWaveTable } from './periodTables.js';
+import { WAVE_HEX_RE } from './periodTables.js';
 
 /** Instrument `type` values accepted by this chip (also exported for tooling). */
 export const BLIP_TYPES = ['pulse', 'triangle', 'wave', 'noise'] as const;
@@ -14,6 +14,49 @@ export type BlipType = (typeof BLIP_TYPES)[number];
 
 /** Accepted `duty` strings (mirrors `DUTY_FRACTIONS` in periodTables.ts). */
 const VALID_DUTY = new Set(['12.5', '25', '50', '75', '12', '0.125', '0.25', '0.5', '0.75']);
+
+/**
+ * Strictly validate a `wave` wavetable field, checking the RAW entries before
+ * the audio path's `parseWaveTable` clamps/rounds/coerces them. Returns a list
+ * of errors (empty when valid).
+ */
+function validateWaveField(raw: unknown): ValidationError[] {
+  const checkSamples = (samples: unknown[]): string | null => {
+    for (const s of samples) {
+      if (typeof s !== 'number' || !Number.isInteger(s) || s < 0 || s > 15) {
+        return `wave samples must be integers 0–15 (got '${String(s)}')`;
+      }
+    }
+    if (samples.length !== 16 && samples.length !== 32) {
+      return `wave must have 16 or 32 samples, got ${samples.length}`;
+    }
+    return null;
+  };
+
+  if (Array.isArray(raw)) {
+    const msg = checkSamples(raw);
+    return msg ? [{ field: 'wave', message: msg }] : [];
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (WAVE_HEX_RE.test(trimmed)) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const msg = checkSamples(parsed);
+        return msg ? [{ field: 'wave', message: msg }] : [];
+      }
+    } catch {
+      // not JSON — fall through to the generic error below
+    }
+  }
+
+  return [{
+    field: 'wave',
+    message: `wave must be a 16 or 32 sample array (0–15) or a 16/32-nibble hex string (got '${String(raw)}')`,
+  }];
+}
 
 export function validateBlipInstrument(inst: InstrumentNode): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -103,20 +146,10 @@ export function validateBlipInstrument(inst: InstrumentNode): ValidationError[] 
     }
   }
 
-  // 5. `wave` — wavetable, wave channel only.
+  // 5. `wave` — wavetable, wave channel only. Validate the RAW entries before
+  //    `parseWaveTable` (the audio path) clamps/rounds/coerces them.
   if (type === 'wave') {
-    const table = parseWaveTable(inst.wave);
-    if (!table) {
-      errors.push({
-        field: 'wave',
-        message: `wave must be a 16 or 32 sample array (0–15) or a 32-nibble hex string (got '${inst.wave ?? ''}')`,
-      });
-    } else if (table.length !== 16 && table.length !== 32) {
-      errors.push({
-        field: 'wave',
-        message: `wave must have 16 or 32 samples, got ${table.length}`,
-      });
-    }
+    errors.push(...validateWaveField(inst.wave));
   } else if (inst.wave !== undefined) {
     errors.push({ field: 'wave', message: 'wave is only valid on the wave channel' });
   }

@@ -50,7 +50,7 @@ export const blipSongWizard: ChipNewSongWizard = {
         id: 'blip-sample-structure',
         label: 'Sample structure',
         content:
-          'pat melody = C4 E4 G4 E4\npat bassl  = C2 . G2 .\npat drums  = kick . kick .\nseq main   = melody melody\nchannel 1 => inst lead seq main\nchannel 2 => inst bass seq bassl\nchannel 3 => inst pad seq main:oct(-2)\nchannel 4 => inst kick seq drums\nplay',
+          'pat melody = C4 E4 G4 E4\npat bassl  = C2 . G2 .\npat drums  = kick . kick .\nseq main     = melody melody\nseq bass_seq = bassl bassl\nseq drum_seq = drums drums\nchannel 1 => inst lead seq main\nchannel 2 => inst bass seq bass_seq\nchannel 3 => inst pad seq main:oct(-2)\nchannel 4 => inst kick seq drum_seq\nplay',
       },
     ],
     defaults: {

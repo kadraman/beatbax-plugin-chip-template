@@ -47,12 +47,14 @@ inst snare type=noise vol=12 noise_mode=white noise_rate=1 env=12,down,2
 pat melody = C4 E4 G4 E4
 pat bassl  = C2 . G2 .
 pat drums  = kick . snare .
-seq main   = melody melody
+seq main     = melody melody
+seq bass_seq = bassl bassl
+seq drum_seq = drums drums
 
 channel 1 => inst lead seq main
-channel 2 => inst bass seq bassl
+channel 2 => inst bass seq bass_seq
 channel 3 => inst pad seq main:oct(-2)
-channel 4 => inst kick seq drums
+channel 4 => inst kick seq drum_seq
 
 play
 ```
@@ -164,7 +166,7 @@ The example implements four distinct voices to show different synthesis paths:
 | 0 | `pulse` | square wave with 4 duty cycles |
 | 1 | `triangle` | fixed triangle wave |
 | 2 | `wave` | 16/32-sample wavetable (hex or array) |
-| 3 | `noise` | 16-bit LFSR noise — `noise_mode` white/periodic + `noise_rate` 0–2 |
+| 3 | `noise` | LFSR noise (white 16-bit / periodic 5-bit) + `noise_rate` 0–2 |
 
 Two rendering paths are implemented:
 
@@ -312,5 +314,6 @@ file and run `beatbax verify`, `beatbax play`, or `beatbax export` as usual.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Replace the copyright holder with your own name
-when you fork.
+MIT — see [LICENSE](LICENSE). When you fork, **retain the existing copyright
+notice** (required by the MIT license) and add your own notice for your
+contributions, e.g. `Copyright (c) <year> <Your Name>`.

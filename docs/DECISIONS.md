@@ -185,7 +185,8 @@ Game Boy/NES semantics — `max` is loudest, `0` is silent.
 - `noise_rate` selects the LFSR clock from `NOISE_RATE_HZ = [32k, 12k, 5k]`,
   giving the classic hat/snare/kick brightness progression — the same idea as
   the SMS/SN76489 `noise_rate` register. Lower clock = darker noise.
-- `periodic` halves the clock again for a buzzing, tonal quality.
+- `periodic` switches to a short 5-bit LFSR (a repeating 31-step buzz) and
+  halves the clock again, rather than just slowing the white-noise sequence.
 
 ---
 

@@ -33,7 +33,7 @@ export const ENVELOPE_FRAME_HZ = 60;
  */
 export const NOISE_RATE_HZ: readonly number[] = [32_000, 12_000, 5_000];
 
-/** `periodic` noise runs the LFSR at half the rate for a buzzing, tonal quality. */
+/** `periodic` noise runs the short LFSR at half the rate for a buzzing, tonal quality. */
 export const NOISE_PERIODIC_DIVISOR = 2;
 
 /** Number of samples in a wave-channel wavetable. */
@@ -89,15 +89,15 @@ export function clampNoiseRate(raw: unknown): number {
 
 // ─── Wavetable ────────────────────────────────────────────────────────────────
 
-/** A 32-nibble hex string, e.g. `0123456789abcdef0123456789abcdef` (sawtooth). */
-const WAVE_HEX_RE = /^[0-9a-f]{32}$/i;
+/** A 16- or 32-nibble hex string, e.g. `0123456789abcdef` (16) or a 32-nibble sawtooth. */
+export const WAVE_HEX_RE = /^(?:[0-9a-f]{16}|[0-9a-f]{32})$/i;
 
 /**
  * Parse a wave-channel wavetable into a `number[]` of 4-bit samples (0–15).
  *
  * Accepts:
  *   - an array of numbers (clamped to 0–15), or
- *   - a 32-nibble hex string (`0123456789abcdef…`), or
+ *   - a 16- or 32-nibble hex string (`0123456789abcdef` / a 32-nibble sawtooth), or
  *   - a JSON-encoded array string.
  *
  * Returns `null` for anything unrecognised. Callers decide whether the length

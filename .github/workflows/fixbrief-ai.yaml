@@ -31,12 +31,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # pin: actions/checkout v4 (immutable)
         with:
           fetch-depth: 0   # full history, so large diffs aren't limited by GitHub's API
                            # and synchronize can resolve github.event.before
 
-      - uses: kadraman/fixbrief-ai@v1
+      - uses: kadraman/fixbrief-ai@fbe8b322b8ec38e91126e33ce390a039bed7b420  # pin: kadraman/fixbrief-ai v1 (immutable)
         with:
           api-key: ${{ secrets.LLM_API_KEY }}
           model: ${{ vars.LLM_MODEL }}

@@ -138,6 +138,21 @@ describe('instrument validation', () => {
     expect(errors.some((e) => e.field === 'wave')).toBe(true);
   });
 
+  it('accepts 16- and 32-nibble hex wavetables', () => {
+    expect(blipPlugin.validateInstrument({ type: 'wave', wave: '0123456789abcdef' })).toEqual([]);
+    expect(blipPlugin.validateInstrument({ type: 'wave', wave: SAW_WAVE })).toEqual([]);
+  });
+
+  it('rejects a wave array with an out-of-range sample', () => {
+    const errors = blipPlugin.validateInstrument({ type: 'wave', wave: [8, 9, 99, 0] });
+    expect(errors.some((e) => e.field === 'wave')).toBe(true);
+  });
+
+  it('rejects a wave array with a nonnumeric sample', () => {
+    const errors = blipPlugin.validateInstrument({ type: 'wave', wave: [8, 'x', 9, 0] });
+    expect(errors.some((e) => e.field === 'wave')).toBe(true);
+  });
+
   it('rejects an invalid noise_mode', () => {
     const errors = blipPlugin.validateInstrument({ type: 'noise', noise_mode: 'loud' });
     expect(errors.some((e) => e.field === 'noise_mode')).toBe(true);
@@ -196,6 +211,14 @@ describe('PCM rendering', () => {
   it('noise channel renders non-zero audio', () => {
     const channel = blipPlugin.createChannel(3, {} as BaseAudioContext);
     channel.noteOn(0, { type: 'noise', vol: 12 });
+    const buffer = new Float32Array(256);
+    channel.render(buffer, 44100);
+    expect(buffer.some((s) => s !== 0)).toBe(true);
+  });
+
+  it('periodic noise renders non-zero audio', () => {
+    const channel = blipPlugin.createChannel(3, {} as BaseAudioContext);
+    channel.noteOn(0, { type: 'noise', vol: 12, noise_mode: 'periodic' });
     const buffer = new Float32Array(256);
     channel.render(buffer, 44100);
     expect(buffer.some((s) => s !== 0)).toBe(true);

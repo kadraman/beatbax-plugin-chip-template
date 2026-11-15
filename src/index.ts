@@ -32,12 +32,14 @@
  * pat melody = C4 E4 G4 E4
  * pat bassl  = C2 . G2 .
  * pat drums  = kick . snare .
- * seq main   = melody melody
+ * seq main     = melody melody
+ * seq bass_seq = bassl bassl
+ * seq drum_seq = drums drums
  *
  * channel 1 => inst lead seq main
- * channel 2 => inst bass seq bassl
+ * channel 2 => inst bass seq bass_seq
  * channel 3 => inst pad seq main:oct(-2)
- * channel 4 => inst kick seq drums
+ * channel 4 => inst kick seq drum_seq
  *
  * play
  * ```

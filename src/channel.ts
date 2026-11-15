@@ -260,14 +260,21 @@ export class PulseBackend implements ChipChannelBackend {
 }
 
 /**
- * Build a PeriodicWave whose first `MAX_HARMONICS` harmonics approximate a
- * square wave at the requested duty cycle.
+ * Build a PeriodicWave reproducing the bipolar pulse used by `render()`:
+ * +1 for the first `duty` fraction of each cycle, -1 for the rest.
  *
- * `disableNormalization: true` keeps our scaled amplitudes (Web Audio otherwise
- * re-normalizes the wave to a fixed peak); 64 harmonics give a reasonably
- * band-limited square without excessive aliasing. A real chip has a fixed
- * hardware sequence instead — see the NES pulse's 8-step duty table for that
- * approach.
+ * A non-50% pulse is neither odd nor even, so its Fourier series has BOTH
+ * cosine (`real`) and sine (`imag`) terms — omitting either shifts the phase
+ * or halves the level relative to the PCM path. Coefficients (amplitude 1):
+ *
+ *   real[n] = (2/(nπ)) sin(2πnd)   — cosine term
+ *   imag[n] = (4/(nπ)) sin²(πnd)   — sine term
+ *   real[0] = 2d − 1               — DC offset (the pulse is not centred at 0)
+ *
+ * `disableNormalization: true` keeps these scaled amplitudes (Web Audio
+ * otherwise re-normalizes to a fixed peak). `MAX_HARMONICS` truncates the
+ * series; 64 terms give a reasonably band-limited pulse. A real chip has a
+ * fixed hardware sequence instead — see the NES pulse's 8-step duty table.
  */
 const MAX_HARMONICS = 64;
 
@@ -275,10 +282,15 @@ function createPulsePeriodicWave(ctx: BaseAudioContext, duty: number): any {
   const size = 4096;
   const real = new Float32Array(size);
   const imag = new Float32Array(size);
+  const d = Math.max(0, Math.min(1, duty));
+
+  // DC offset of the bipolar pulse (+1 for [0,d), -1 for [d,1)).
+  real[0] = 2 * d - 1;
 
   for (let n = 1; n <= MAX_HARMONICS; n++) {
-    const amplitude = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
-    imag[n] = Number.isFinite(amplitude) ? amplitude : 0;
+    const sine = Math.sin(Math.PI * n * d);
+    real[n] = (2 / (n * Math.PI)) * Math.sin(2 * Math.PI * n * d);
+    imag[n] = (4 / (n * Math.PI)) * sine * sine;
   }
 
   return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
@@ -443,7 +455,7 @@ export class WaveBackend implements ChipChannelBackend {
       buffer[i] += ((this.table[idx] - mean) / 15) * amplitude;
 
       this.phase += phaseInc;
-      if (this.phase >= cycleLen) this.phase -= Math.floor(this.phase);
+      if (this.phase >= cycleLen) this.phase %= cycleLen; // keep fractional overshoot
     }
   }
 
@@ -516,8 +528,21 @@ function stepLfsr(state: number): number {
 }
 
 /**
+ * Advance a 5-bit Galois LFSR (maximal-length, period 31) — used by `periodic`
+ * noise so the output is a short repeating buzz rather than white noise.
+ */
+function stepShortLfsr(state: number): number {
+  const bit = ((state >> 0) ^ (state >> 2)) & 1;
+  return ((state >> 1) | (bit << 4)) & 0x1f;
+}
+
+/**
  * A noise voice driven by a linear-feedback shift register (LFSR), matching
- * how real retro sound chips generate percussion. Percussion channels only
+ * how real retro sound chips generate percussion.
+ *
+ * `noise_mode=white` uses a 16-bit maximal LFSR (pseudo-random hiss);
+ * `noise_mode=periodic` uses a short 5-bit LFSR — a repeating 31-step buzz —
+ * instead of merely slowing the white-noise clock. Percussion channels only
  * implement `render()` — they do not use the melodic effects system, so they
  * have no `createPlaybackNodes()`.
  */
@@ -528,7 +553,8 @@ export class NoiseBackend implements ChipChannelBackend {
   private level = 15;
   private env: Envelope = { initial: 15, direction: 'flat', period: 0 };
   private frame = 0;
-  private lfsr = 0xace1; // fixed seed so tests stay deterministic
+  private lfsr = 0xace1; // 16-bit LFSR seed (white noise; fixed for determinism)
+  private shortLfsr = 0x13; // 5-bit LFSR seed (periodic buzz; must be non-zero)
   private noisePhase = 0; // fractional LFSR step accumulator
 
   reset(): void {
@@ -538,6 +564,7 @@ export class NoiseBackend implements ChipChannelBackend {
     this.level = 15;
     this.frame = 0;
     this.lfsr = 0xace1;
+    this.shortLfsr = 0x13;
     this.noisePhase = 0;
   }
 
@@ -549,6 +576,7 @@ export class NoiseBackend implements ChipChannelBackend {
     this.level = this.env.initial;
     this.frame = 0;
     this.lfsr = 0xace1;
+    this.shortLfsr = 0x13;
     this.noisePhase = 0;
     this.active = true;
   }
@@ -573,11 +601,16 @@ export class NoiseBackend implements ChipChannelBackend {
     for (let i = 0; i < buffer.length; i++) {
       this.noisePhase += step;
       while (this.noisePhase >= 1) {
-        this.lfsr = stepLfsr(this.lfsr);
+        if (this.periodic) {
+          this.shortLfsr = stepShortLfsr(this.shortLfsr);
+        } else {
+          this.lfsr = stepLfsr(this.lfsr);
+        }
         this.noisePhase -= 1;
       }
-      // The low bit of the LFSR is our ±1 noise output.
-      buffer[i] += this.lfsr & 1 ? amplitude : -amplitude;
+      // `periodic` emits a short repeating sequence; white uses the 16-bit LFSR.
+      const bit = this.periodic ? (this.shortLfsr & 1) : (this.lfsr & 1);
+      buffer[i] += bit ? amplitude : -amplitude;
     }
   }
 }

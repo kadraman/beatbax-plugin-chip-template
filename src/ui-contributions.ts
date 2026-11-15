@@ -98,7 +98,7 @@ Style guide:
           kind: 'song',
           label: 'Four-voice BLIP-01 demo',
           code:
-            'chip blip\nbpm 120\n\ninst lead type=pulse vol=13 duty=25 env=13,down,2\ninst bass type=triangle vol=15 env=15,flat\ninst pad  type=wave vol=10 wave=0123456789abcdef0123456789abcdef\ninst kick type=noise vol=15 noise_mode=white env=15,down,1\n\npat melody = C4 E4 G4 E4\npat bassl  = C2 . G2 .\npat drums  = kick . kick .\nseq main   = melody melody\n\nchannel 1 => inst lead seq main\nchannel 2 => inst bass seq bassl\nchannel 3 => inst pad seq main:oct(-2)\nchannel 4 => inst kick seq drums\n\nplay',
+            'chip blip\nbpm 120\n\ninst lead type=pulse vol=13 duty=25 env=13,down,2\ninst bass type=triangle vol=15 env=15,flat\ninst pad  type=wave vol=10 wave=0123456789abcdef0123456789abcdef\ninst kick type=noise vol=15 noise_mode=white env=15,down,1\n\npat melody = C4 E4 G4 E4\npat bassl  = C2 . G2 .\npat drums  = kick . kick .\nseq main     = melody melody\nseq bass_seq = bassl bassl\nseq drum_seq = drums drums\n\nchannel 1 => inst lead seq main\nchannel 2 => inst bass seq bass_seq\nchannel 3 => inst pad seq main:oct(-2)\nchannel 4 => inst kick seq drum_seq\n\nplay',
         },
       ],
     },
