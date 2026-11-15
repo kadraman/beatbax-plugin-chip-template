@@ -1,0 +1,25 @@
+# BLIP-01 alias + effects test.
+#
+# Uses the alias "blip01" (instead of "blip") to confirm alias resolution, and
+# exercises the engine's default effects (arpeggio, vibrato, portamento).
+#
+# NOTE: effects are applied on the Web Audio path (Desktop / web). The CLI PCM
+# path renders them without effect automation, so compare playback in both.
+
+chip blip01
+bpm 120
+stepsPerBar 4
+
+inst lead type=pulse vol=13 duty=25 env=13,flat
+
+effect wobble = vib:6,4
+effect spark  = arp:4,7
+effect glide  = port:16
+
+pat line = C4<spark> E4<glide> G4<wobble> . C5<spark> . G4<wobble> E4 .
+
+seq main = line line
+
+channel 1 => inst lead seq main
+
+play

@@ -1,0 +1,48 @@
+# BLIP-01 demo tune — a short four-voice loop to listen to the chip's character.
+#
+#   channel 1 → pulse     lead melody
+#   channel 2 → triangle  bass
+#   channel 3 → wave      pad (sawtooth wavetable)
+#   channel 4 → noise     kick + snare
+#
+# Run: beatbax play songs/03-demo-tune.bax
+
+song name "Blip Demo"
+song artist "BeatBax Plugin Template"
+song description "Short four-voice loop exercising pulse, triangle, wavetable, and noise."
+song tags "blip, demo, template"
+
+chip blip
+bpm 112
+stepsPerBar 4
+
+inst lead  type=pulse vol=10 duty=25 env=13,down,2
+inst bass  type=triangle vol=15 env=15,flat
+inst pad   type=wave vol=6 wave=0123456789abcdef0123456789abcdef
+inst kick  type=noise vol=15 noise_mode=white noise_rate=2 env=15,down,1
+inst snare type=noise vol=12 noise_mode=white noise_rate=1 env=12,down,2
+inst hat   type=noise vol=9  noise_mode=white noise_rate=0 env=9,down,1
+
+pat lead_a = E4 . G4 . A4 . G4 . E4 . D4 . C4 . . .
+pat lead_b = C4 . D4 . E4 . G4 . A4 . C5 . G4 . . .
+
+pat bass_a = A2 . . A2 C3 . . C3 D3 . . D3 E3 . D3 .
+pat bass_b = F2 . . F2 G2 . . G2 A2 . . A2 B2 . C3 .
+
+pat pad_a = A3:2 E4:2 C4:2 G3:2
+pat pad_b = F3:2 C4:2 D4:2 A3:2
+
+pat drums_a = kick . hat . hat . snare .
+pat drums_b = kick hat snare . hat . kick snare
+
+seq lead_seq = lead_a lead_b lead_a lead_b
+seq bass_seq = bass_a bass_b bass_a bass_b
+seq pad_seq  = (pad_a pad_b pad_a pad_b)*2
+seq drum_seq = drums_a*8
+
+channel 1 => inst lead  seq lead_seq
+channel 2 => inst bass  seq bass_seq
+channel 3 => inst pad   seq pad_seq
+channel 4 => inst kick  seq drum_seq
+
+play

@@ -1,0 +1,46 @@
+# BLIP-01 instrument coverage — exercises every instrument field.
+# Each channel swaps between several instruments so you can hear the differences.
+#
+# Run: beatbax play songs/02-instruments.bax
+
+chip blip
+bpm 130
+stepsPerBar 4
+
+# --- pulse: four duty cycles (thin → fat) ---
+inst p12 type=pulse vol=13 duty=12.5 env=13,flat
+inst p25 type=pulse vol=13 duty=25   env=13,flat
+inst p50 type=pulse vol=13 duty=50   env=13,flat
+inst p75 type=pulse vol=13 duty=75   env=13,flat
+
+# --- triangle: smooth bass ---
+inst tri_bass type=triangle vol=15 env=15,flat
+
+# --- wave: hex string vs JSON array, hard vs soft timbre ---
+inst w_saw    type=wave vol=10 wave=0123456789abcdef0123456789abcdef
+inst w_square type=wave vol=10 wave=ffffffff00000000ffffffff00000000
+inst w_soft   type=wave vol=10 wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6]
+
+# --- noise: noise_rate sets brightness (0 = hi-hat, 1 = snare, 2 = kick) ---
+inst kick     type=noise vol=15 noise_mode=white    noise_rate=2 env=15,down,1
+inst snare    type=noise vol=12 noise_mode=white    noise_rate=1 env=12,down,2
+inst hihat    type=noise vol=9  noise_mode=white    noise_rate=0 env=9,down,1
+inst buzz_tom type=noise vol=12 noise_mode=periodic noise_rate=2 env=12,down,4
+
+# duty scan on pulse (thin → fat), a wave timbre swap, a triangle line, drums
+pat duty_scan = inst p12 C4 inst p25 C4 inst p50 C4 inst p75 C4
+pat wave_swap = inst w_saw C4:2 inst w_square C4:2 inst w_soft C4:4
+pat tri_line  = C3 . G2 . A2 . C3 .
+pat drums     = kick . snare . kick kick snare hihat
+
+seq dseq = duty_scan duty_scan
+seq wseq = wave_swap wave_swap
+seq tseq = tri_line tri_line
+seq nseq = drums drums
+
+channel 1 => inst p50     seq dseq
+channel 2 => inst tri_bass seq tseq
+channel 3 => inst w_saw   seq wseq
+channel 4 => inst kick    seq nseq
+
+play
