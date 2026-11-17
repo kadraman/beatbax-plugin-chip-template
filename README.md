@@ -297,8 +297,20 @@ After any of these, write `chip blip` (or the alias `chip blip01`) in a `.bax`
 file and run `beatbax verify`, `beatbax play`, or `beatbax export` as usual.
 `beatbax list-chips --json` shows chips with versions and aliases.
 
-> **Desktop** does not install plugins via npm — plugins are bundled at build
-> time (see `packages/app-core/src/plugins/registry-config.ts` in the main repo).
+---
+
+## Installing into BeatBax Desktop
+
+BeatBax Desktop can install this plugin without a monorepo rebuild (Settings → Plugins → **User plugins**).
+
+1. **Install from folder** (local loop): run `npm run build` here, then in Desktop choose **Install from folder…** and select this package directory. Desktop copies the built package into its own `userData` (it does **not** copy `node_modules`).
+2. **Install from npm**: publish this package, then in Desktop enter `beatbax-plugin-chip-blip` (or your renamed package) and choose **Install from npm**.
+
+After install, Desktop reloads. Write `chip blip` (or your chip `name`) and play. Enable / disable / Remove are on the same Settings row.
+
+CLI and Desktop installs are **separate copies** — linking into a song folder for `beatbax` does not install into Desktop, and a Desktop install does not appear in the CLI.
+
+See also [Desktop install in the contributing guide](https://github.com/kadraman/beatbax/blob/main/docs/contributing/creating-plugins.md#desktop-install-beatbax-desktop).
 
 ---
 
