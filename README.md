@@ -297,8 +297,21 @@ After any of these, write `chip blip` (or the alias `chip blip01`) in a `.bax`
 file and run `beatbax verify`, `beatbax play`, or `beatbax export` as usual.
 `beatbax list-chips --json` shows chips with versions and aliases.
 
-> **Desktop** does not install plugins via npm — plugins are bundled at build
-> time (see `packages/app-core/src/plugins/registry-config.ts` in the main repo).
+## Installing into BeatBax Desktop
+
+Desktop installs are separate from CLI `node_modules` / `npm link` copies. In
+BeatBax Desktop → Settings → Plugins → **User plugins**:
+
+```bash
+npm run pack:desktop   # build + npm pack → beatbax-plugin-chip-blip-0.1.0.tgz
+```
+
+Then choose that `.tgz` with **Install from package…**. Attach the same file (or
+a zip of the packed package contents) to a GitHub Release and install that asset
+the same way. Do **not** use GitHub’s automatic source-code zip. Desktop does
+not install from the npm registry (publish remains for the CLI).
+
+After install, Desktop reloads. Write `chip blip` and play from Desktop as usual.
 
 ---
 
