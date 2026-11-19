@@ -274,11 +274,30 @@ describe('Web Audio playback nodes', () => {
     expect(nodes).toHaveLength(2);
   });
 
-  it('wave returns [bufferSource, gain]', () => {
+  it('wave returns a looping bufferSource so Desktop notes sustain', () => {
     const ctx = new (global as any).AudioContext();
     const channel = blipPlugin.createChannel(2, ctx);
     const nodes = channel.createPlaybackNodes?.(ctx, 440, 0, 0.1, { type: 'wave', vol: 10, wave: SAW_WAVE }, null, ctx.destination);
     expect(Array.isArray(nodes)).toBe(true);
     expect(nodes).toHaveLength(2);
+    expect((nodes as any[])[0].loop).toBe(true);
+    expect((nodes as any[])[0].playbackRate.value).toBeGreaterThan(0);
+  });
+
+  it('noise returns [bufferSource, gain] for Desktop percussion', () => {
+    const ctx = new (global as any).AudioContext();
+    const channel = blipPlugin.createChannel(3, ctx);
+    const nodes = channel.createPlaybackNodes?.(
+      ctx,
+      0,
+      0,
+      0.1,
+      { type: 'noise', vol: 15, noise_mode: 'white', noise_rate: 2, env: '15,down,1' },
+      null,
+      ctx.destination,
+    );
+    expect(Array.isArray(nodes)).toBe(true);
+    expect(nodes).toHaveLength(2);
+    expect((nodes as any[])[0].buffer).toBeTruthy();
   });
 });

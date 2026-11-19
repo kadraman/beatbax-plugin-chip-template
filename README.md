@@ -85,8 +85,8 @@ What the tests cover:
 - **channel creation** — a backend per channel index, out-of-range throws
 - **validation** — valid/invalid instruments and per-type field rules (`duty`, `wave`, `noise_mode`)
 - **PCM rendering** — each voice outputs non-zero samples; silence after `noteOff`
-- **Web Audio** — `createPlaybackNodes()` returns `[source, gain]` for the melodic
-  voices and `null` (PCM fallback) for a mock context
+- **Web Audio** — `createPlaybackNodes()` returns `[source, gain]` for **all four**
+  voices (including looping wave + noise percussion); mock contexts may return `null`
 
 Tips:
 
@@ -181,11 +181,20 @@ Key rules, shown in the code:
   channels are mixed by accumulation.
 - `createPlaybackNodes()` must set `_baseFreq` before returning so the arp
   effect can read the base pitch, connect `source → gain → destination`, and
-  return `[source, gain]`. Return `null` to fall back to PCM (e.g. a mock ctx).
-- Melodic channels implement **both** paths. The wave voice shows the
-  `AudioBufferSourceNode` + `playbackRate` approach (one buffer = one cycle);
-  the pulse shows a duty-cycle `PeriodicWave`; the triangle uses the built-in
-  `osc.type = 'triangle'`. Percussion (noise) only needs `render()`.
+  return `[source, gain]`. Return `null` only when the context lacks real Web
+  Audio factories (e.g. a mock) so the engine can fall back to PCM.
+- **Implement both paths on every voice you care about in Desktop.** CLI play /
+  WAV export use `render()`; BeatBax Desktop live playback prefers
+  `createPlaybackNodes()`. A voice that only implements `render()` can sound
+  wrong or truncated in Desktop (ScriptProcessor PCM fallback) even when CLI
+  export is perfect.
+- Wave / `AudioBufferSourceNode` tables: set **`src.loop = true`** and set
+  **`playbackRate.value` immediately** (not only `setValueAtTime` at a possibly
+  past start). One cycle without looping is a few milliseconds — a click, then
+  silence for the rest of the note.
+- Pulse shows a duty-cycle `PeriodicWave`; triangle uses `osc.type = 'triangle'`;
+  noise pre-renders an LFSR buffer for the note duration (do not leave noise
+  PCM-only if you want Desktop drums to match CLI).
 - Per-voice gains in `src/mixer.ts` (`BLIP_MIX_GAIN`) keep a triangle from
   sounding quieter than a pulse at the same `vol` — see the file's comments.
 

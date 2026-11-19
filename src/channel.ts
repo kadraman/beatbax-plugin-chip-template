@@ -19,9 +19,8 @@
  *
  *   - Web Audio (`createPlaybackNodes()`): used in the browser / Electron. It
  *     returns `[sourceNode, gainNode]` so the engine can insert effects (arp,
- *     vib, portamento, echo…) between the gain and the destination. Melodic
- *     channels implement BOTH paths; percussion channels (like our noise
- *     voice) only need the PCM path.
+ *     vib, portamento, echo…) between the gain and the destination. All four
+ *     voices implement BOTH paths so Desktop live playback matches CLI PCM.
  */
 import type { ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
 import {
@@ -498,11 +497,17 @@ export class WaveBackend implements ChipChannelBackend {
 
     const src = (ctx as any).createBufferSource();
     src.buffer = buf;
+    // Must loop: a single 16/32-sample cycle is only a few milliseconds without
+    // this (Desktop Web Audio path would click once then go silent for the note).
+    src.loop = true;
 
     // One buffer = one cycle at `sampleRate / cycleLen` Hz. Scale playbackRate
-    // so the cycle plays at the requested frequency.
+    // so the cycle plays at the requested frequency. Set `.value` immediately
+    // so a slightly-late schedule callback does not leave rate at the default 1.
     const cycleFreq = sampleRate / cycleLen;
-    src.playbackRate.setValueAtTime(freq / cycleFreq, start);
+    const rate = freq / cycleFreq;
+    src.playbackRate.value = rate;
+    src.playbackRate.setValueAtTime(rate, start);
     src._baseFreq = freq;
 
     const gain = (ctx as any).createGain();
@@ -548,9 +553,11 @@ function stepShortLfsr(state: number): number {
  *
  * `noise_mode=white` uses a 16-bit maximal LFSR (pseudo-random hiss);
  * `noise_mode=periodic` uses a short 5-bit LFSR — a repeating 31-step buzz —
- * instead of merely slowing the white-noise clock. Percussion channels only
- * implement `render()` — they do not use the melodic effects system, so they
- * have no `createPlaybackNodes()`.
+ * instead of merely slowing the white-noise clock.
+ *
+ * Desktop live playback prefers `createPlaybackNodes()` (Web Audio). Without
+ * it, percussion falls back to ScriptProcessor PCM and can miss or truncate
+ * hits relative to the melodic Web Audio channels.
  */
 export class NoiseBackend implements ChipChannelBackend {
   private active = false;
@@ -618,6 +625,75 @@ export class NoiseBackend implements ChipChannelBackend {
       const bit = this.periodic ? (this.shortLfsr & 1) : (this.lfsr & 1);
       buffer[i] += bit ? amplitude : -amplitude;
     }
+  }
+
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    _freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    _scheduler: unknown,
+    destination: AudioNode,
+  ): AudioNode[] | null {
+    if (
+      typeof (ctx as any).createBuffer !== 'function' ||
+      typeof (ctx as any).createBufferSource !== 'function'
+    ) {
+      return null;
+    }
+
+    const periodic = String(inst.noise_mode ?? 'white').toLowerCase() === 'periodic';
+    const rate = clampNoiseRate(inst.noise_rate);
+    const env = parseEnvelope(inst);
+    const sampleRate = (ctx as any).sampleRate || 44100;
+    const totalSamples = Math.max(1, Math.ceil((dur + 0.02) * sampleRate));
+    const buf = (ctx as any).createBuffer(1, totalSamples, sampleRate);
+    const data = buf.getChannelData(0);
+
+    const baseHz = NOISE_RATE_HZ[rate] ?? NOISE_RATE_HZ[1];
+    const stepHz = periodic ? baseHz / NOISE_PERIODIC_DIVISOR : baseHz;
+    const step = stepHz / sampleRate;
+    const samplesPerFrame = Math.max(1, Math.round(sampleRate / ENVELOPE_FRAME_HZ));
+
+    let lfsr = 0xace1;
+    let shortLfsr = 0x13;
+    let noisePhase = 0;
+    let frame = 0;
+    let samplesUntilFrame = samplesPerFrame;
+    let level = env.initial;
+
+    for (let i = 0; i < totalSamples; i++) {
+      const amplitude = (level / 15) * BLIP_MIX_GAIN.noise;
+      noisePhase += step;
+      while (noisePhase >= 1) {
+        if (periodic) shortLfsr = stepShortLfsr(shortLfsr);
+        else lfsr = stepLfsr(lfsr);
+        noisePhase -= 1;
+      }
+      const bit = periodic ? (shortLfsr & 1) : (lfsr & 1);
+      data[i] = bit ? amplitude : -amplitude;
+
+      samplesUntilFrame -= 1;
+      if (samplesUntilFrame <= 0) {
+        frame += 1;
+        level = envelopeLevel(env, frame);
+        samplesUntilFrame = samplesPerFrame;
+      }
+    }
+
+    const src = (ctx as any).createBufferSource();
+    src.buffer = buf;
+    const gain = (ctx as any).createGain();
+    // Amplitude is already baked into the buffer; keep gain at 1 with a short release.
+    gain.gain.setValueAtTime(1, start);
+    gain.gain.setValueAtTime(1, start + dur);
+    gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.01);
+    src.connect(gain);
+    gain.connect(destination);
+    src.start(start);
+    src.stop(start + dur + 0.02);
+    return [src, gain];
   }
 }
 

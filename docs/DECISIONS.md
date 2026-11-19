@@ -111,8 +111,8 @@ synthesis paths that map to four different `ChipChannelBackend` implementations:
 |-------|-----------------|
 | `pulse` | square + duty (PCM phase compare; Web Audio `PeriodicWave`) |
 | `triangle` | a second waveform (PCM piecewise; Web Audio `osc.type='triangle'`) |
-| `wave` | user wavetable (`parseWaveTable`, `AudioBufferSourceNode` + `playbackRate`) |
-| `noise` | LFSR percussion (PCM-only, `noise_rate` brightness) |
+| `wave` | user wavetable (`parseWaveTable`, looping `AudioBufferSourceNode` + `playbackRate`) |
+| `noise` | LFSR percussion (PCM `render()` + Web Audio pre-rendered buffer; `noise_rate`) |
 
 A single flat gain would make these wildly different in loudness (§11), which
 is why there is a mixer.
@@ -121,21 +121,36 @@ is why there is a mixer.
 
 ## 7. Dual rendering (PCM + Web Audio)
 
-**Decision:** melodic channels implement **both** `render()` (PCM) and
-`createPlaybackNodes()` (Web Audio); the noise channel implements only
-`render()`.
+**Decision:** **all four** voices implement **both** `render()` (PCM) and
+`createPlaybackNodes()` (Web Audio).
 
 **Why:**
 
-- The CLI/headless path uses `render(buffer, sampleRate)`; the browser/Electron
-  path uses `createPlaybackNodes()` to get the full effects system.
+- The CLI/headless path (and Desktop WAV export) uses `render(buffer, sampleRate)`.
+  BeatBax Desktop **live** playback prefers `createPlaybackNodes()` so effects
+  (arp, vib, portamento, …) can automate AudioParams.
+- If a voice omits `createPlaybackNodes()`, Desktop falls back to ScriptProcessor
+  PCM for that voice only. Melodic Web Audio channels and PCM-fallback percussion
+  then diverge in timing/routing — authors hear “CLI/export is fine, Desktop live
+  is wrong” (especially channels 3–4).
 - `render()` must **accumulate** (`buffer[i] += …`) because the engine mixes
   channels by summation.
 - `createPlaybackNodes()` returns `[source, gain]` and stores `_baseFreq` on
-  the source so the arp effect can read the base pitch; it returns `null` for a
-  context without real Web Audio factories (e.g. a mock) to fall back to PCM.
-- Percussion (noise) has no pitch effects, so it is PCM-only — matching the
-  guidance in the plugin guide.
+  the source so the arp effect can read the base pitch; it returns `null` only
+  for a context without real Web Audio factories (e.g. a mock) to fall back to PCM.
+
+**Wave-specific (Desktop footgun):**
+
+- One wavetable cycle in an `AudioBufferSourceNode` is only a few milliseconds.
+  Always set `src.loop = true`, and set `playbackRate.value` immediately (as well
+  as any scheduled automation). Without looping, Desktop plays a click then
+  silence for the rest of the note — while PCM `render()` still sounds correct.
+
+**Noise-specific:**
+
+- Implement `createPlaybackNodes()` by pre-rendering LFSR samples for the note
+  duration (envelope baked or via gain). Do not treat percussion as PCM-only
+  when targeting Desktop live playback.
 
 ---
 
